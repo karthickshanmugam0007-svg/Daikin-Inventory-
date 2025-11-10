@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daikin - Final Line Inventory and Rejection Tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'daikin-blue': '#003F7F', // Deep Daikin Blue
+                        'daikin-light': '#007AFF', // Brighter Blue for accents
+                        'daikin-dark': '#1F2937', // Dark/Navy background
+                        'daikin-text': '#F3F4F6', // Off-white text
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c1016; /* Even darker base */
+        }
+        .scrollable-card {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .input-dark, .select-dark {
+            background-color: #374151;
+            border-color: #4B5563;
+            color: #dae3f0;
+            transition: all 0.2s;
+        }
+        .input-dark:focus, .select-dark:focus {
+            border-color: #007AFF;
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.5);
+        }
+        .btn-primary {
+            background-color: #003F7F;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #0056B3;
+        }
+        /* Mobile first adjustments */
+        .grid-responsive {
+            grid-template-columns: 1fr;
+        }
+        @media (min-width: 768px) {
+            .grid-responsive {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-daikin-text">
+
+    <!-- Global Message/Toast Area -->
+    <div id="message-container" class="fixed top-5 right-5 z-50"></div>
+
+    <div id="app-root" class="flex flex-col min-h-screen">
+        <!-- Header -->
+        <header class="bg-daikin-dark p-4 shadow-xl flex justify-between items-center sticky top-0 z-10">
+            <div class="flex items-center space-x-4">
+                <button id="menu-toggle" class="md:hidden text-daikin-light hover:text-white transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                </button>
+                <h1 id="home-button" class="text-2xl font-bold text-daikin-light cursor-pointer">Daikin</h1>
+                <span class="hidden sm:inline text-daikin-text text-lg">| Final Line Inventory and Rejection Tracking</span>
+            </div>
+            <div id="user-info" class="text-sm flex items-center space-x-2">
+                <!-- User/Auth Status goes here -->
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex flex-grow">
+            <!-- Sliding Menu (Left Top) -->
+            <nav id="sliding-menu" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out bg-daikin-dark md:w-64 w-64 p-4 shadow-2xl z-20">
+                <h2 class="text-xl font-semibold mb-6 text-daikin-light border-b border-gray-700 pb-2">Navigation</h2>
+                <ul class="space-y-2">
+                    <li><button data-view="main" class="menu-item w-full text-left p-2 rounded-lg hover:bg-gray-700 transition">Main Dashboard</button></li>
+                    <li><button data-view="monthly" class="menu-item w-full text-left p-2 rounded-lg hover:bg-gray-700 transition">Monthly Dashboard</button></li>
+                    <li><button data-view="reports" class="menu-item w-full text-left p-2 rounded-lg hover:bg-gray-700 transition">Reports & Trends</button></li>
+                    <li><button id="admin-access-btn" class="w-full text-left p-2 rounded-lg hover:bg-gray-700 transition text-red-400 font-semibold">Admin Settings</button></li>
+                    <li><button id="db-access-btn" class="w-full text-left p-2 rounded-lg hover:bg-gray-700 transition">Database Options (Simulated)</button></li>
+                </ul>
+            </nav>
+
+            <!-- Content Panel -->
+            <div id="content-panel" class="flex-grow p-4 md:p-8 bg-gray-900">
+                <!-- Content will be dynamically injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Admin Password -->
+    <div id="admin-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center">
+        <div class="bg-daikin-dark p-6 rounded-xl shadow-2xl w-80">
+            <h3 class="text-xl font-bold mb-4 text-daikin-light">Admin Access Required</h3>
+            <p class="mb-4">Enter Admin Password:</p>
+            <input type="password" id="admin-password-input" class="input-dark w-full p-2 mb-4 rounded-lg focus:ring-daikin-light focus:border-daikin-light">
+            <div class="flex justify-end space-x-2">
+                <button id="admin-modal-cancel" class="px-4 py-2 bg-gray-600 rounded-lg hover:bg-gray-700 transition">Cancel</button>
+                <button id="admin-modal-submit" class="btn-primary px-4 py-2 rounded-lg">Access</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Login -->
+    <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="bg-daikin-dark p-8 rounded-xl shadow-2xl w-96 text-center border-t-4 border-daikin-light">
+            <h2 class="text-3xl font-extrabold mb-6 text-daikin-light">Daikin Login</h2>
+            <p id="login-status" class="text-sm text-yellow-400 mb-4"></p>
+            <input type="text" id="login-username" placeholder="Username (Daikin)" value="Daikin" class="input-dark w-full p-3 mb-4 rounded-lg focus:ring-daikin-light focus:border-daikin-light">
+            <input type="password" id="login-password" placeholder="Password (1)" value="1" class="input-dark w-full p-3 mb-6 rounded-lg focus:ring-daikin-light focus:border-daikin-light">
+            <button id="login-submit" class="btn-primary w-full p-3 rounded-lg font-semibold text-lg">Log In</button>
+        </div>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, addDoc, getDocs, runTransaction, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment (MANDATORY USE)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId = null;
+        let isAuthReady = false;
+        let currentView = 'main';
+
+        // --- Data Mocking & Global State ---
+        // Mock data for dropdowns (will be populated from Firestore on ready)
+        let models = [];
+        let rejectionAreas = [];
+        let employeeList = [];
+
+        // Current form state
+        let productionEntries = [{ model: '', qty: 0 }];
+        let rejectionEntries = [{ area: '', qty: 0 }];
+        let materialRejections = [{ partNumber: '', qty: 0 }];
+        let inventoryData = []; // Reservation Preview Table data
+        let reservationEntries = {}; // {partNumber: qty} for manual entry
+
+        // --- Utility Functions ---
+
+        /** Shows a temporary toast message. */
+        const showToast = (message, type = 'success') => {
+            const container = document.getElementById('message-container');
+            const color = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-yellow-600';
+
+            const toast = document.createElement('div');
+            toast.className = `p-3 rounded-lg shadow-lg text-white font-semibold mb-2 ${color} transition transform duration-300`;
+            toast.textContent = message;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-5');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 3000);
+        };
+
+        /** Generates a Firestore path for private user data. */
+        const getPrivatePath = (collectionName) => {
+            return `/artifacts/${appId}/users/${userId}/${collectionName}`;
+        };
+
+        /** Generates a Firestore path for public BOM data. */
+        const getPublicPath = (collectionName) => {
+            return `/artifacts/${appId}/public/data/${collectionName}`;
+        };
+
+        // --- Core App Logic & Initialization (Firebase) ---
+
+        const initializeFirebase = async () => {
+            if (!firebaseConfig) {
+                showToast("Firebase Config is missing.", 'error');
+                return;
+            }
+            try {
+                // setLogLevel('debug'); // Uncomment for debugging
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Authentication Flow
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-info').innerHTML = `
+                            <span class="text-xs text-gray-400">User ID:</span>
+                            <span class="font-mono text-xs text-daikin-text">${userId}</span>
+                        `;
+                        isAuthReady = true;
+                        if (document.getElementById('login-modal')) {
+                            document.getElementById('login-modal').classList.add('hidden');
+                        }
+                        // Start real-time listeners only after auth is ready
+                        setupDataListeners();
+                        renderApp();
+                    } else {
+                        userId = null;
+                        isAuthReady = false;
+                        document.getElementById('user-info').textContent = 'Not Logged In';
+                        document.getElementById('login-modal').classList.remove('hidden');
+                    }
+                });
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase initialization or sign-in failed:", error);
+                document.getElementById('login-status').textContent = `Auth Error: ${error.message}`;
+                document.getElementById('login-modal').classList.remove('hidden');
+            }
+        };
+
+        // --- Real-Time Data Listeners ---
+
+        const setupDataListeners = () => {
+            if (!db || !userId) return;
+
+            // 1. Listen to BOM Settings (Public Data)
+            onSnapshot(collection(db, getPublicPath('bom_settings')), (snapshot) => {
+                models = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Populate the global list of parts (used for material rejection dropdown)
+                let allParts = {};
+                models.forEach(model => {
+                    if (model.parts) {
+                        Object.values(model.parts).forEach(part => {
+                            allParts[part.partNumber] = part.partName;
+                        });
+                    }
+                });
+                models.allParts = allParts;
+                showToast('BOM data updated.', 'info');
+                renderMainDashboard(); // Re-render main dashboard to update dropdowns
+            }, (error) => console.error("Error listening to BOM:", error));
+
+
+            // 2. Listen to Rejection Areas (Public Data)
+            onSnapshot(collection(db, getPublicPath('rejection_areas')), (snapshot) => {
+                rejectionAreas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                showToast('Rejection areas updated.', 'info');
+                renderMainDashboard(); // Re-render main dashboard to update dropdowns
+            }, (error) => console.error("Error listening to Rejection Areas:", error));
+        };
+
+        // --- Inventory Calculation Logic (Simplified) ---
+
+        /** Calculates inventory based on current production/rejection and previous stock. */
+        const calculateInventory = async (shiftDate, shift) => {
+            if (!db || !userId) return;
+
+            // Get BOM parts for all produced models
+            let producedParts = {}; // {partNumber: {qtyNeeded: N, partName: S, unit: U}}
+            let totalProductionQty = 0;
+
+            productionEntries.forEach(entry => {
+                if (entry.model && entry.qty > 0) {
+                    totalProductionQty += entry.qty;
+                    const bom = models.find(m => m.id === entry.model);
+                    if (bom && bom.parts) {
+                        Object.values(bom.parts).forEach(part => {
+                            const needed = part.bomQty * entry.qty;
+                            producedParts[part.partNumber] = producedParts[part.partNumber] || {
+                                partName: part.partName,
+                                partNumber: part.partNumber,
+                                totalNeeded: 0,
+                                unit: part.unit || 'No\'s'
+                            };
+                            producedParts[part.partNumber].totalNeeded += needed;
+                        });
+                    }
+                }
+            });
+
+            // For now, we only track parts used in production
+            const currentParts = Object.values(producedParts);
+
+            // Get Previous Closing Stock (Simplified: look for the last record overall for the part)
+            const inventoryCollection = collection(db, getPrivatePath('inventory_records'));
+            inventoryData = [];
+
+            for (const part of currentParts) {
+                // SIMULATION: Since finding the exact previous shift is complex,
+                // we'll fetch the current available stock from a mocked 'current_stock' collection
+                // and assume it's the Opening Stock for this demo.
+                let openingStock = 0;
+                try {
+                    const stockDocRef = doc(db, getPrivatePath('current_stock'), part.partNumber);
+                    const stockSnap = await getDoc(stockDocRef);
+                    openingStock = stockSnap.exists() ? stockSnap.data().stock || 0 : 500; // Default opening stock
+                } catch (e) {
+                    console.warn("Could not fetch stock for part:", part.partNumber, e);
+                    openingStock = 500; // Fallback
+                }
+
+
+                // Reservation Qty (from manual entry)
+                const reservationQty = reservationEntries[part.partNumber] || 0;
+
+                // Production Qty (for this part, it's the total quantity * of the models it's used in)
+                const productionQty = productionEntries.reduce((sum, entry) => {
+                    const bom = models.find(m => m.id === entry.model);
+                    const partInBom = bom?.parts ? Object.values(bom.parts).find(p => p.partNumber === part.partNumber) : null;
+                    return sum + (partInBom ? entry.qty : 0);
+                }, 0);
+
+
+                // Rejection Qty (Simplified: Rejection qty from material rejection form)
+                const rejectionQty = materialRejections.find(mr => mr.partNumber === part.partNumber)?.qty || 0;
+
+
+                // Consumption Calculation: (Parts needed for final product) + (Parts rejected)
+                const consumptionQty = part.totalNeeded + rejectionQty;
+
+                // Closing Stock Calculation
+                // Opening Stock + Reservation - Consumption (as Reservation is 'added' to stock)
+                const closingStock = openingStock + reservationQty - consumptionQty;
+
+                inventoryData.push({
+                    partNumber: part.partNumber,
+                    partName: part.partName,
+                    openingStock: openingStock,
+                    reservationQty: reservationQty,
+                    productionQty: totalProductionQty, // Simplified: show total output for all parts
+                    rejectionQty: rejectionQty,
+                    consumptionQty: consumptionQty,
+                    closingStock: closingStock
+                });
+            }
+
+            renderReservationPreview();
+        };
+
+        // --- UI Rendering Functions ---
+
+        const renderLogin = () => {
+            // Already handled by the login-modal visibility
+        };
+
+        const renderApp = () => {
+            if (!isAuthReady || !userId) {
+                // Wait for login or auth listener
+                return;
+            }
+            // Render the current view
+            switch (currentView) {
+                case 'main':
+                    renderMainDashboard();
+                    break;
+                case 'admin':
+                    renderAdminDashboard();
+                    break;
+                case 'monthly':
+                    renderMonthlyDashboard();
+                    break;
+                case 'reports':
+                    renderReportsDashboard();
+                    break;
+                default:
+                    renderMainDashboard();
+            }
+        };
+
+        const renderMainDashboard = () => {
+            const contentPanel = document.getElementById('content-panel');
+            contentPanel.innerHTML = `
+                <div class="space-y-8">
+                    <h2 class="text-3xl font-extrabold text-daikin-light border-b border-gray-700 pb-2">Record Production & Material</h2>
+
+                    <!-- Shift & Employee Details -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">Shift Details</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Select Date</label>
+                                <input type="date" id="input-date" value="${new Date().toISOString().slice(0, 10)}" class="input-dark w-full p-2 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Shift</label>
+                                <select id="input-shift" class="select-dark w-full p-2 rounded-lg">
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Employee ID (Your ID)</label>
+                                <input type="text" value="${userId.substring(0, 8)}..." disabled class="input-dark w-full p-2 rounded-lg cursor-not-allowed opacity-70">
+                                <p class="text-xs text-gray-500 mt-1">Full ID: ${userId}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Production Output Entry -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">Production Output</h3>
+                        <div id="production-entries-container" class="space-y-3 mb-4">
+                            <!-- Dynamic rows here -->
+                        </div>
+                        <button id="add-production-row" class="text-daikin-light hover:text-white transition flex items-center space-x-1">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span>Add Model</span>
+                        </button>
+                    </div>
+
+                    <!-- Rejection Entry -->
+                    <div class="grid grid-responsive gap-8">
+                        <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                            <h3 class="text-xl font-semibold mb-4 text-daikin-light">Area Wise Rejection</h3>
+                            <div id="rejection-entries-container" class="space-y-3 mb-4">
+                                <!-- Dynamic rows here -->
+                            </div>
+                            <button id="add-rejection-row" class="text-daikin-light hover:text-white transition flex items-center space-x-1">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Add Area</span>
+                            </button>
+                        </div>
+
+                        <!-- Material Rejection Entry -->
+                        <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                            <h3 class="text-xl font-semibold mb-4 text-daikin-light">Material Wise Rejection</h3>
+                            <div id="material-rejection-container" class="space-y-3 mb-4">
+                                <!-- Dynamic rows here -->
+                            </div>
+                            <button id="add-material-rejection-row" class="text-daikin-light hover:text-white transition flex items-center space-x-1">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Add Material</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Preview -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">Reservation Entry & Preview</h3>
+                        <div id="reservation-preview-container" class="overflow-x-auto scrollable-card">
+                            <!-- Inventory table will be rendered here -->
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button id="submit-production-data" class="btn-primary w-full p-3 rounded-lg text-lg font-semibold shadow-xl">
+                        Save Production & Inventory Data
+                    </button>
+                </div>
+            `;
+            // Attach event listeners and render dynamic forms
+            attachMainListeners();
+            renderDynamicForms();
+            calculateInventory();
+        };
+
+        const renderDynamicForms = () => {
+            // Production Entries
+            const prodContainer = document.getElementById('production-entries-container');
+            prodContainer.innerHTML = productionEntries.map((entry, index) => `
+                <div class="flex space-x-2 items-center">
+                    <select data-index="${index}" data-type="production" data-field="model" class="select-dark p-2 rounded-lg flex-grow">
+                        <option value="">Select Model</option>
+                        ${models.map(m => `<option value="${m.id}" ${entry.model === m.id ? 'selected' : ''}>${m.id}</option>`).join('')}
+                    </select>
+                    <input type="number" data-index="${index}" data-type="production" data-field="qty" value="${entry.qty}" placeholder="Qty" class="input-dark p-2 rounded-lg w-20">
+                    ${index > 0 ? `<button data-index="${index}" data-type="production" class="remove-row text-red-400 hover:text-red-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </button>` : ''}
+                </div>
+            `).join('');
+
+            // Area Rejection Entries
+            const rejContainer = document.getElementById('rejection-entries-container');
+            rejContainer.innerHTML = rejectionEntries.map((entry, index) => `
+                <div class="flex space-x-2 items-center">
+                    <select data-index="${index}" data-type="rejection" data-field="area" class="select-dark p-2 rounded-lg flex-grow">
+                        <option value="">Select Area</option>
+                        ${rejectionAreas.map(a => `<option value="${a.name}" ${entry.area === a.name ? 'selected' : ''}>${a.name}</option>`).join('')}
+                    </select>
+                    <input type="number" data-index="${index}" data-type="rejection" data-field="qty" value="${entry.qty}" placeholder="Qty" class="input-dark p-2 rounded-lg w-20">
+                    ${index > 0 ? `<button data-index="${index}" data-type="rejection" class="remove-row text-red-400 hover:text-red-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </button>` : ''}
+                </div>
+            `).join('');
+
+            // Material Rejection Entries
+            const matRejContainer = document.getElementById('material-rejection-container');
+            matRejContainer.innerHTML = materialRejections.map((entry, index) => {
+                const partsOptions = models.allParts ? Object.entries(models.allParts).map(([pn, name]) =>
+                    `<option value="${pn}" ${entry.partNumber === pn ? 'selected' : ''}>${pn} - ${name}</option>`
+                ).join('') : '';
+
+                return `
+                    <div class="flex space-x-2 items-center">
+                        <select data-index="${index}" data-type="material-rejection" data-field="partNumber" class="select-dark p-2 rounded-lg flex-grow">
+                            <option value="">Select Material</option>
+                            ${partsOptions}
+                        </select>
+                        <input type="number" data-index="${index}" data-type="material-rejection" data-field="qty" value="${entry.qty}" placeholder="Qty" class="input-dark p-2 rounded-lg w-20">
+                        ${index > 0 ? `<button data-index="${index}" data-type="material-rejection" class="remove-row text-red-400 hover:text-red-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>` : ''}
+                    </div>
+                `;
+            }).join('');
+        };
+
+        const renderReservationPreview = () => {
+            const container = document.getElementById('reservation-preview-container');
+
+            if (!container) return; // Guard against main dashboard not being rendered
+
+            let serial = 0;
+            container.innerHTML = `
+                <table class="min-w-full bg-gray-800 rounded-xl">
+                    <thead>
+                        <tr class="bg-gray-700 text-left text-sm font-semibold uppercase tracking-wider">
+                            <th class="p-3 rounded-tl-xl">S.no</th>
+                            <th class="p-3">Part Number / Name</th>
+                            <th class="p-3">Opening Stock</th>
+                            <th class="p-3">Reservation Qty (Manual)</th>
+                            <th class="p-3">Production Qty</th>
+                            <th class="p-3">Rejection Qty</th>
+                            <th class="p-3">Consumption Qty</th>
+                            <th class="p-3 rounded-tr-xl">Closing Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${inventoryData.map(item => {
+                            serial++;
+                            // Store reservation quantity in global state to persist
+                            reservationEntries[item.partNumber] = item.reservationQty;
+                            return `
+                                <tr class="border-b border-gray-700 hover:bg-gray-700 transition">
+                                    <td class="p-3">${serial}</td>
+                                    <td class="p-3">
+                                        <div class="font-bold">${item.partNumber}</div>
+                                        <div class="text-xs text-gray-400">${item.partName}</div>
+                                    </td>
+                                    <td class="p-3 text-yellow-400">${item.openingStock.toFixed(2)}</td>
+                                    <td class="p-3">
+                                        <input type="number" data-part-number="${item.partNumber}" value="${item.reservationQty}" placeholder="Enter Qty"
+                                            class="reservation-qty-input input-dark p-1 rounded-lg w-24 text-center"
+                                            onchange="window.handleReservationChange(this.dataset.partNumber, this.value)"
+                                            onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.focusNextReservationInput(this); }"
+                                        >
+                                    </td>
+                                    <td class="p-3 text-green-400">${item.productionQty.toFixed(2)}</td>
+                                    <td class="p-3 text-red-400">${item.rejectionQty.toFixed(2)}</td>
+                                    <td class="p-3 text-orange-400">${item.consumptionQty.toFixed(2)}</td>
+                                    <td class="p-3 font-bold text-daikin-light">${item.closingStock.toFixed(2)}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+                ${inventoryData.length === 0 ? '<p class="p-6 text-center text-gray-500">Produce a model to see inventory data.</p>' : ''}
+            `;
+        };
+
+        // Expose to window for inline onchange/onkeydown handlers
+        window.handleReservationChange = (partNumber, value) => {
+            const qty = parseFloat(value) || 0;
+            reservationEntries[partNumber] = qty;
+            calculateInventory(); // Recalculate and re-render the table
+        };
+
+        window.focusNextReservationInput = (currentInput) => {
+            const inputs = Array.from(document.querySelectorAll('.reservation-qty-input'));
+            const currentIndex = inputs.indexOf(currentInput);
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
+        };
+
+        const renderAdminDashboard = () => {
+            const contentPanel = document.getElementById('content-panel');
+            contentPanel.innerHTML = `
+                <div class="space-y-8">
+                    <h2 class="text-3xl font-extrabold text-red-400 border-b border-gray-700 pb-2">Admin Dashboard</h2>
+
+                    <!-- BOM Setting -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">BOM Setting (Model/Part Management)</h3>
+
+                        <!-- BOM Add Form -->
+                        <div id="bom-add-form" class="border border-gray-700 p-4 rounded-lg mb-4">
+                            <h4 class="text-lg font-semibold mb-3 text-green-400">Add New Model BOM</h4>
+                            <input type="text" id="bom-model-name" placeholder="Model Name (e.g., AHU-100)" class="input-dark p-2 rounded-lg w-full mb-3">
+                            <div id="bom-parts-container" class="space-y-2 mb-3">
+                                <!-- Dynamic part entries -->
+                            </div>
+                            <button id="add-bom-part-row" class="text-green-400 hover:text-green-600 transition flex items-center space-x-1 mb-3">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>Add Part to Model</span>
+                            </button>
+                            <button id="submit-bom-add" class="btn-primary p-2 rounded-lg w-full">Add Model BOM</button>
+                        </div>
+
+                        <!-- BOM List & Update/Delete -->
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold mb-3 text-daikin-light">Existing Models</h4>
+                            <div class="overflow-x-auto scrollable-card">
+                                <table id="bom-list-table" class="min-w-full bg-gray-800 rounded-xl">
+                                    <!-- BOM list populated here -->
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rejection Setting -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">Rejection Area Setting</h3>
+                        <input type="text" id="rejection-area-name" placeholder="New Rejection Area Name" class="input-dark p-2 rounded-lg w-1/2 mb-3">
+                        <button id="submit-rejection-area" class="btn-primary p-2 rounded-lg w-1/2">Add New Area</button>
+
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold mb-3 text-daikin-light">Current Rejection Areas</h4>
+                            <ul id="rejection-area-list" class="space-y-1">
+                                <!-- Rejection area list populated here -->
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Employee Access (Simplified) -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">Employee Access Settings (Simplified)</h3>
+                        <p class="text-sm text-gray-400">Employee ID is used as User ID and Password. Only Admin can update BOMs and settings.</p>
+                        <button id="update-employee-list-btn" class="btn-primary p-2 rounded-lg mt-3">Simulate Employee List Update</button>
+                    </div>
+
+                    <!-- Database Options (Simplified) -->
+                    <div class="bg-daikin-dark p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-daikin-light">Database Options (Simulated)</h3>
+                        <p class="text-sm text-yellow-400 mb-2">Note: This application uses Firestore (Online Cloud).</p>
+                        <p class="text-sm text-gray-400">Offline/Existing sheet browse option is simulated.</p>
+                        <button onclick="showToast('Browsing files is not possible in this environment. Using Cloud Firestore.', 'warning')" class="px-4 py-2 bg-yellow-600 rounded-lg hover:bg-yellow-700 transition">Browse Database File</button>
+                    </div>
+                </div>
+            `;
+            attachAdminListeners();
+            renderBOMList();
+            renderRejectionAreaList();
+        };
+
+        const renderMonthlyDashboard = () => {
+            document.getElementById('content-panel').innerHTML = `
+                <div class="p-6 bg-daikin-dark rounded-xl shadow-lg">
+                    <h2 class="text-3xl font-extrabold text-daikin-light mb-4">Monthly Data Overview</h2>
+                    <p class="text-gray-400">This dashboard would show accumulated Reservation, Production, and Rejection data from the month starting onwards, part code and model wise.</p>
+                    <div class="mt-6 p-4 border border-gray-700 rounded-lg">
+                        <p>Monthly data visualization is pending database aggregation. Example placeholder chart:</p>
+                        <img src="https://placehold.co/600x200/003F7F/ffffff?text=Monthly+Data+Chart+Placeholder" class="w-full h-auto rounded-lg mt-4" alt="Monthly chart placeholder">
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderReportsDashboard = () => {
+            document.getElementById('content-panel').innerHTML = `
+                <div class="p-6 bg-daikin-dark rounded-xl shadow-lg">
+                    <h2 class="text-3xl font-extrabold text-daikin-light mb-4">Reports & Analytics</h2>
+                    <div class="space-y-4">
+                        <p class="text-gray-400">Here you can generate reports, cross-check shift data, and view rejection trends.</p>
+
+                        <!-- Manual Search -->
+                        <div class="bg-gray-800 p-4 rounded-lg">
+                            <h3 class="text-xl font-semibold mb-2">Manual Data Search (Date Wise)</h3>
+                            <input type="date" class="input-dark p-2 rounded-lg mr-2">
+                            <select class="select-dark p-2 rounded-lg mr-2">
+                                <option>Reservation</option>
+                                <option>Rejection</option>
+                                <option>Production</option>
+                            </select>
+                            <button class="btn-primary p-2 rounded-lg">Search</button>
+                        </div>
+
+                        <!-- Report Generation -->
+                        <div class="bg-gray-800 p-4 rounded-lg">
+                            <h3 class="text-xl font-semibold mb-2">Trend Chart & PDF Export</h3>
+                            <p class="text-sm text-gray-500 mb-3">Rejection data trends chart generated and exported to PDF/Email (Outlook).</p>
+                            <button id="generate-pdf-btn" class="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition mr-2">Generate PDF & Email</button>
+                            <select id="email-option" class="select-dark p-2 rounded-lg">
+                                <option value="outlook">Outlook (Simulated)</option>
+                                <option value="gmail">Gmail (Simulated)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('generate-pdf-btn').addEventListener('click', () => {
+                const email = document.getElementById('email-option').value;
+                showToast(`Simulating PDF generation and email via ${email}. Action logged.`, 'info');
+                console.log(`Report generated and simulated for email via ${email}.`);
+            });
+        };
+
+        // --- Event Handlers & Attachments ---
+
+        const attachMainListeners = () => {
+            const contentPanel = document.getElementById('content-panel');
+
+            // Dynamic Form Management
+            ['production', 'rejection', 'material-rejection'].forEach(type => {
+                const addButton = document.getElementById(`add-${type.replace('-', '_')}-row`);
+                if (addButton) {
+                    addButton.addEventListener('click', () => {
+                        if (type === 'production') productionEntries.push({ model: '', qty: 0 });
+                        if (type === 'rejection') rejectionEntries.push({ area: '', qty: 0 });
+                        if (type === 'material-rejection') materialRejections.push({ partNumber: '', qty: 0 });
+                        renderDynamicForms();
+                        calculateInventory();
+                    });
+                }
+            });
+
+            contentPanel.addEventListener('change', (e) => {
+                const { type, index, field } = e.target.dataset;
+                if (type && index !== undefined) {
+                    const value = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+                    const idx = parseInt(index);
+
+                    if (type === 'production') {
+                        productionEntries[idx][field] = value;
+                    } else if (type === 'rejection') {
+                        rejectionEntries[idx][field] = value;
+                    } else if (type === 'material-rejection') {
+                        materialRejections[idx][field] = value;
+                    }
+                    // Re-render the inventory preview on any change to production/rejection
+                    if (type === 'production' || type === 'material-rejection') {
+                         calculateInventory();
+                    }
+                }
+            });
+
+            contentPanel.addEventListener('click', (e) => {
+                if (e.target.closest('.remove-row')) {
+                    const btn = e.target.closest('.remove-row');
+                    const { type, index } = btn.dataset;
+                    const idx = parseInt(index);
+
+                    if (type === 'production') {
+                        productionEntries.splice(idx, 1);
+                    } else if (type === 'rejection') {
+                        rejectionEntries.splice(idx, 1);
+                    } else if (type === 'material-rejection') {
+                        materialRejections.splice(idx, 1);
+                    }
+                    renderDynamicForms();
+                    calculateInventory();
+                }
+            });
+
+            // Submit Button
+            document.getElementById('submit-production-data').addEventListener('click', saveProductionData);
+        };
+
+        const attachAdminListeners = () => {
+            // BOM Add/Update/Delete listeners (Simplified)
+            let currentBomParts = [];
+
+            const renderBomPartsForm = () => {
+                const container = document.getElementById('bom-parts-container');
+                if (!container) return;
+                container.innerHTML = currentBomParts.map((part, index) => `
+                    <div class="flex space-x-2 items-center">
+                        <input type="text" data-index="${index}" data-field="partNumber" value="${part.partNumber}" placeholder="Part Number" class="input-dark p-2 rounded-lg w-1/4">
+                        <input type="text" data-index="${index}" data-field="partName" value="${part.partName}" placeholder="Part Name" class="input-dark p-2 rounded-lg w-1/4">
+                        <input type="number" data-index="${index}" data-field="bomQty" value="${part.bomQty}" placeholder="BOM Qty" class="input-dark p-2 rounded-lg w-1/6">
+                        <select data-index="${index}" data-field="unit" class="select-dark p-2 rounded-lg w-1/6">
+                            <option value="No's" ${part.unit === "No's" ? 'selected' : ''}>No's</option>
+                            <option value="kg" ${part.unit === "kg" ? 'selected' : ''}>kg</option>
+                            <option value="ltr" ${part.unit === "ltr" ? 'selected' : ''}>ltr</option>
+                        </select>
+                        <button data-index="${index}" data-type="bom-part" class="remove-row text-red-400 hover:text-red-600">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </button>
+                    </div>
+                `).join('');
+            };
+
+            const handleBomPartChange = (e) => {
+                const { index, field } = e.target.dataset;
+                const idx = parseInt(index);
+                const value = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+                currentBomParts[idx][field] = value;
+            };
+
+            document.getElementById('bom-add-form').addEventListener('change', handleBomPartChange);
+            document.getElementById('bom-add-form').addEventListener('click', (e) => {
+                if (e.target.closest('#add-bom-part-row')) {
+                    currentBomParts.push({ partNumber: '', partName: '', bomQty: 1, unit: "No's" });
+                    renderBomPartsForm();
+                } else if (e.target.closest('.remove-row[data-type="bom-part"]')) {
+                    const btn = e.target.closest('.remove-row');
+                    const idx = parseInt(btn.dataset.index);
+                    currentBomParts.splice(idx, 1);
+                    renderBomPartsForm();
+                }
+            });
+
+            document.getElementById('submit-bom-add').addEventListener('click', async () => {
+                const modelName = document.getElementById('bom-model-name').value.trim();
+                if (!modelName || currentBomParts.length === 0) {
+                    showToast('Model name and at least one part are required.', 'error');
+                    return;
+                }
+
+                // Convert currentBomParts array into an object structure for Firestore (key is partNumber)
+                const partsObject = {};
+                let isValid = true;
+                currentBomParts.forEach(part => {
+                    if (part.partNumber && part.partName && part.bomQty > 0) {
+                        partsObject[part.partNumber] = part;
+                    } else {
+                        isValid = false;
+                    }
+                });
+
+                if (!isValid) {
+                    showToast('All parts must have valid Number, Name, and Qty.', 'error');
+                    return;
+                }
+
+                try {
+                    // Use modelName as the document ID for easy lookup
+                    await setDoc(doc(db, getPublicPath('bom_settings'), modelName), {
+                        modelName: modelName,
+                        parts: partsObject,
+                        timestamp: serverTimestamp()
+                    });
+                    showToast(`BOM for model ${modelName} added successfully.`, 'success');
+                    document.getElementById('bom-model-name').value = '';
+                    currentBomParts = [];
+                    renderBomPartsForm();
+                } catch (e) {
+                    console.error("Error adding BOM:", e);
+                    showToast('Failed to add BOM. Check console for details.', 'error');
+                }
+            });
+
+            // Rejection Area Setting
+            document.getElementById('submit-rejection-area').addEventListener('click', async () => {
+                const areaName = document.getElementById('rejection-area-name').value.trim();
+                if (!areaName) {
+                    showToast('Rejection area name is required.', 'error');
+                    return;
+                }
+                try {
+                    await addDoc(collection(db, getPublicPath('rejection_areas')), { name: areaName, timestamp: serverTimestamp() });
+                    showToast(`Rejection area '${areaName}' added.`, 'success');
+                    document.getElementById('rejection-area-name').value = '';
+                } catch (e) {
+                    console.error("Error adding rejection area:", e);
+                    showToast('Failed to add rejection area. Check console for details.', 'error');
+                }
+            });
+        };
+
+        const renderBOMList = () => {
+            const table = document.getElementById('bom-list-table');
+            if (!table) return;
+
+            if (models.length === 0) {
+                table.innerHTML = '<p class="p-4 text-gray-500">No BOM models found.</p>';
+                return;
+            }
+
+            table.innerHTML = `
+                <thead>
+                    <tr class="bg-gray-700 text-left text-sm font-semibold uppercase tracking-wider">
+                        <th class="p-3">Model Name</th>
+                        <th class="p-3">Part Details</th>
+                        <th class="p-3 rounded-tr-xl">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${models.map(model => `
+                        <tr class="border-b border-gray-700 hover:bg-gray-700 transition">
+                            <td class="p-3 font-bold">${model.modelName}</td>
+                            <td class="p-3">
+                                <ul class="text-xs space-y-1">
+                                    ${model.parts ? Object.values(model.parts).map(part =>
+                                        `<li>${part.partNumber} (${part.partName}): ${part.bomQty} ${part.unit || "No's"}</li>`
+                                    ).join('') : 'No parts defined'}
+                                </ul>
+                            </td>
+                            <td class="p-3">
+                                <button data-model-id="${model.id}" class="delete-bom text-red-400 hover:text-red-600 transition">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+
+            table.querySelectorAll('.delete-bom').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const modelId = e.target.dataset.modelId;
+                    if (window.confirm(`Are you sure you want to delete BOM for model ${modelId}?`)) {
+                        try {
+                            await deleteDoc(doc(db, getPublicPath('bom_settings'), modelId));
+                            showToast(`Model ${modelId} deleted.`, 'success');
+                        } catch (err) {
+                            showToast(`Error deleting model: ${err.message}`, 'error');
+                        }
+                    }
+                });
+            });
+        };
+
+        const renderRejectionAreaList = () => {
+            const list = document.getElementById('rejection-area-list');
+            if (!list) return;
+
+            list.innerHTML = rejectionAreas.map(area => `
+                <li class="p-2 bg-gray-700 rounded-lg flex justify-between items-center">
+                    <span>${area.name}</span>
+                    <button data-area-id="${area.id}" class="delete-area text-red-400 hover:text-red-600 transition text-sm">Delete</button>
+                </li>
+            `).join('');
+
+            list.querySelectorAll('.delete-area').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const areaId = e.target.dataset.areaId;
+                    if (window.confirm('Are you sure you want to delete this rejection area?')) {
+                        try {
+                            await deleteDoc(doc(db, getPublicPath('rejection_areas'), areaId));
+                            showToast('Rejection area deleted.', 'success');
+                        } catch (err) {
+                            showToast(`Error deleting area: ${err.message}`, 'error');
+                        }
+                    }
+                });
+            });
+        };
+
+        // --- Data Submission ---
+
+        const saveProductionData = async () => {
+            if (!db || !userId) {
+                showToast("Authentication not ready. Please wait.", 'error');
+                return;
+            }
+
+            const date = document.getElementById('input-date').value;
+            const shift = document.getElementById('input-shift').value;
+
+            if (!date || !shift) {
+                showToast("Date and Shift must be selected.", 'error');
+                return;
+            }
+
+            const validProduction = productionEntries.filter(e => e.model && e.qty > 0);
+            const validRejection = rejectionEntries.filter(e => e.area && e.qty > 0);
+            const validMaterialRejection = materialRejections.filter(e => e.partNumber && e.qty > 0);
+
+            if (validProduction.length === 0) {
+                 showToast("Please enter at least one production output.", 'error');
+                return;
+            }
+
+            try {
+                // 1. Save Production/Rejection Record
+                const record = {
+                    date: date,
+                    shift: shift,
+                    employeeId: userId,
+                    productionOutput: validProduction,
+                    areaRejections: validRejection,
+                    materialRejections: validMaterialRejection,
+                    reservationEntries: reservationEntries,
+                    timestamp: serverTimestamp()
+                };
+
+                await addDoc(collection(db, getPrivatePath('production_records')), record);
+
+                // 2. Update Inventory Stock (Simplified: Update the "current_stock" collection for future use)
+                for (const item of inventoryData) {
+                    const stockDocRef = doc(db, getPrivatePath('current_stock'), item.partNumber);
+                    await setDoc(stockDocRef, {
+                        stock: item.closingStock,
+                        lastShift: shift,
+                        lastDate: date
+                    }, { merge: true });
+                }
+
+                showToast("Production data and inventory stock saved successfully!", 'success');
+
+                // Reset forms
+                productionEntries = [{ model: '', qty: 0 }];
+                rejectionEntries = [{ area: '', qty: 0 }];
+                materialRejections = [{ partNumber: '', qty: 0 }];
+                reservationEntries = {};
+                inventoryData = [];
+                renderDynamicForms();
+                calculateInventory();
+
+            } catch (error) {
+                console.error("Error saving data:", error);
+                showToast(`Failed to save data: ${error.message}`, 'error');
+            }
+        };
+
+        // --- Global Listeners & Navigation ---
+
+        const handleNavigation = (view) => {
+            currentView = view;
+            renderApp();
+            // Hide menu on mobile after selection
+            if (window.innerWidth < 768) {
+                document.getElementById('sliding-menu').classList.add('-translate-x-full');
+            }
+        };
+
+        // Main button event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Firebase on load
+            initializeFirebase();
+
+            // Menu toggle for mobile
+            document.getElementById('menu-toggle').addEventListener('click', () => {
+                document.getElementById('sliding-menu').classList.toggle('-translate-x-full');
+            });
+
+            // Home button
+            document.getElementById('home-button').addEventListener('click', () => handleNavigation('main'));
+
+            // Navigation buttons
+            document.querySelectorAll('.menu-item').forEach(btn => {
+                btn.addEventListener('click', (e) => handleNavigation(e.target.dataset.view));
+            });
+
+            // Admin access password modal
+            document.getElementById('admin-access-btn').addEventListener('click', () => {
+                document.getElementById('admin-modal').classList.remove('hidden');
+                document.getElementById('admin-password-input').value = '';
+                document.getElementById('admin-password-input').focus();
+            });
+
+            document.getElementById('admin-modal-cancel').addEventListener('click', () => {
+                document.getElementById('admin-modal').classList.add('hidden');
+            });
+
+            document.getElementById('admin-modal-submit').addEventListener('click', () => {
+                const password = document.getElementById('admin-password-input').value;
+                const ADMIN_PASSWORD = '54321';
+                if (password === ADMIN_PASSWORD) {
+                    document.getElementById('admin-modal').classList.add('hidden');
+                    handleNavigation('admin');
+                    showToast("Admin Dashboard unlocked.", 'success');
+                } else {
+                    showToast("Incorrect Admin Password.", 'error');
+                }
+            });
+
+            // Login submission (Only for hardcoded Daikin/1 login)
+            document.getElementById('login-submit').addEventListener('click', () => {
+                const username = document.getElementById('login-username').value.trim();
+                const password = document.getElementById('login-password').value.trim();
+                const status = document.getElementById('login-status');
+
+                if (username === 'Daikin' && password === '1') {
+                    // Since Firebase is already authenticated via custom token/anonymously,
+                    // we simulate a successful login by hiding the modal.
+                    document.getElementById('login-modal').classList.add('hidden');
+                    status.textContent = '';
+                    showToast("Login successful. Welcome!", 'success');
+                    renderApp();
+                } else {
+                    status.textContent = 'Invalid username or password.';
+                }
+            });
+
+            // Simulate DB browse button
+            document.getElementById('db-access-btn').addEventListener('click', () => {
+                showToast("Simulating database file browsing... Using Cloud Firestore for persistent data.", 'info');
+            });
+
+            // Initial render call (will be guarded by isAuthReady)
+            renderApp();
+        });
+
+    </script>
+</body>
+</html>
+
